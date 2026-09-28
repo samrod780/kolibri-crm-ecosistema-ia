@@ -1,0 +1,224 @@
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #FAFAF8;
+    color: #1A1A1A;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+  header { margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: #666; font-size: 13px; }
+  .meta { color: #999; font-size: 12px; margin-top: 6px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; margin-left: 6px;
+  }
+  .badge.live { background: #E6F4EA; color: #1E7E34; }
+  .badge.err { background: #FCE8E6; color: #C5221F; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .card {
+    background: #fff; border: 1px solid #EAEAE6; border-radius: 10px; padding: 16px;
+  }
+  .card .label { font-size: 11.5px; color: #777; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+  .card .value { font-size: 26px; font-weight: 700; }
+  .card .sub { font-size: 12px; color: #999; margin-top: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border: 1px solid #EAEAE6; border-radius: 10px; padding: 16px; }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; color: #333; }
+  .chart-box { position: relative; height: 240px; }
+  table.simple { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.simple th { text-align: left; background: #F1F1EF; padding: 8px 10px; font-weight: 600; color: #444; }
+  table.simple td { padding: 8px 10px; border-top: 1px solid #F0F0EE; vertical-align: top; }
+  .pill { padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .pill.pend { background: #F1F1EF; color: #555; }
+  .pill.proc { background: #E8F0FE; color: #1A56DB; }
+  .pill.appr { background: #E6F4EA; color: #1E7E34; }
+  .empty { color: #999; font-size: 12.5px; padding: 16px 4px; }
+  footer { margin-top: 30px; font-size: 11.5px; color: #999; border-top: 1px solid #EEE; padding-top: 14px; line-height: 1.6; }
+  .err-note { font-size: 12px; color: #C5221F; background: #FCE8E6; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Kolibri CRM — Dashboard de Control<span id="live-badge" class="badge live">● en vivo</span></h1>
+    <div class="subtitle">Ecosistema de Automatización IA Autónomo · Entregable 5 · Coderhouse AI Automation</div>
+    <div class="meta" id="updated-at">Cargando datos desde Notion…</div>
+  </header>
+
+  <div id="error-banner" style="display:none" class="err-note"></div>
+
+  <div class="cards" id="kpi-cards">
+    <div class="card"><div class="label">Piezas totales</div><div class="value">—</div></div>
+    <div class="card"><div class="label">Aprobadas</div><div class="value">—</div></div>
+    <div class="card"><div class="label">En proceso</div><div class="value">—</div></div>
+    <div class="card"><div class="label">Errores registrados</div><div class="value">—</div></div>
+    <div class="card"><div class="label">Fragmentos RAG</div><div class="value">—</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Piezas de contenido por estado</h2>
+      <div class="chart-box"><canvas id="chartEstado"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Base RAG por categoría</h2>
+      <div class="chart-box"><canvas id="chartRag"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:28px;">
+    <h2>Centro de Comando — piezas de contenido</h2>
+    <div id="tabla-piezas"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Log de Errores</h2>
+    <div id="tabla-errores"></div>
+  </div>
+
+  <footer>
+    Fuente de datos: Notion (Centro de Comando, Base RAG, Log de Errores), consultada de forma segura desde el
+    servidor de Cowork — las credenciales de Notion nunca se exponen en este HTML público. Este dashboard se
+    actualiza cada vez que se abre. Kolibri CRM · Caso de estudio — Coderhouse AI Automation · Entrega Final · Sam Rodriguez.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<script>
+(async function () {
+  const TOOL = 'mcp__323db470-0271-4f6b-9fdc-4bb5f65d2c6c__notion-query-data-sources';
+  const DS = {
+    centro: 'collection://3e264d4a-9063-8083-844a-000b00dda427',
+    log: 'collection://2f75a762-b3cb-40b5-99f1-d9d111e9f53c',
+    rag: 'collection://b23415fe-9810-4cf2-9d51-b86bec98572d',
+  };
+
+  function unwrap(r) {
+    if (!r) return null;
+    if (r.structuredContent) return r.structuredContent;
+    try { return JSON.parse(r.content[0].text); } catch (e) { return null; }
+  }
+
+  async function queryRows(dsUrl, sql) {
+    const res = await window.cowork.callMcpTool(TOOL, {
+      data: { mode: 'sql', data_source_urls: [dsUrl], query: sql }
+    });
+    if (res && res.isError) throw new Error('Tool error: ' + JSON.stringify(res.content));
+    const data = unwrap(res);
+    return (data && data.results) ? data.results : [];
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function estadoPill(estado) {
+    if (estado === 'Aprobado por Humano') return `<span class="pill appr">${escapeHtml(estado)}</span>`;
+    if (estado === 'Procesado por IA') return `<span class="pill proc">${escapeHtml(estado)}</span>`;
+    return `<span class="pill pend">${escapeHtml(estado || 'Pendiente')}</span>`;
+  }
+
+  function setCard(index, value, sub) {
+    const cards = document.querySelectorAll('#kpi-cards .card');
+    cards[index].querySelector('.value').textContent = value;
+    if (sub) {
+      const s = document.createElement('div');
+      s.className = 'sub';
+      s.textContent = sub;
+      cards[index].appendChild(s);
+    }
+  }
+
+  try {
+    const [piezas, errores, rag] = await Promise.all([
+      queryRows(DS.centro, `SELECT "ID_Pieza","Idea_Semilla","Estado","Aprobado","date:Fecha_Ultima_Ejecucion:start" as fecha FROM "${DS.centro}"`),
+      queryRows(DS.log, `SELECT "Name","Nodo_Fallido","Accion_Tomada","date:Fecha:start" as fecha,"Mensaje_Error" FROM "${DS.log}"`),
+      queryRows(DS.rag, `SELECT "Fragmento_ID","Categoria" FROM "${DS.rag}"`),
+    ]);
+
+    document.getElementById('updated-at').textContent =
+      'Última actualización: ' + new Date().toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' });
+
+    // KPIs
+    const aprobadas = piezas.filter(p => p.Aprobado === '__YES__' || p.Estado === 'Aprobado por Humano').length;
+    const enProceso = piezas.length - aprobadas;
+    setCard(0, piezas.length);
+    setCard(1, aprobadas);
+    setCard(2, enProceso);
+    setCard(3, errores.length, errores.length === 0 ? 'sin incidentes registrados' : null);
+    setCard(4, rag.length);
+
+    // Chart: Estado
+    const estadoCounts = {};
+    piezas.forEach(p => { const k = p.Estado || 'Sin estado'; estadoCounts[k] = (estadoCounts[k] || 0) + 1; });
+    new Chart(document.getElementById('chartEstado'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(estadoCounts),
+        datasets: [{
+          data: Object.values(estadoCounts),
+          backgroundColor: ['#9AA0A6', '#4285F4', '#34A853', '#FBBC04'],
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+
+    // Chart: RAG por categoria
+    const ragCounts = {};
+    rag.forEach(r => { const k = r.Categoria || 'Sin categoría'; ragCounts[k] = (ragCounts[k] || 0) + 1; });
+    new Chart(document.getElementById('chartRag'), {
+      type: 'bar',
+      data: {
+        labels: Object.keys(ragCounts),
+        datasets: [{ data: Object.values(ragCounts), backgroundColor: '#8257E5' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { ticks: { font: { size: 10 } } } }
+      }
+    });
+
+    // Tabla piezas
+    const tPiezas = document.getElementById('tabla-piezas');
+    if (piezas.length === 0) {
+      tPiezas.innerHTML = '<div class="empty">No hay piezas de contenido registradas todavía.</div>';
+    } else {
+      let html = '<table class="simple"><thead><tr><th>ID</th><th>Idea semilla</th><th>Estado</th><th>Última ejecución</th></tr></thead><tbody>';
+      piezas.forEach(p => {
+        html += `<tr><td>${escapeHtml(p.ID_Pieza)}</td><td>${escapeHtml(p.Idea_Semilla)}</td><td>${estadoPill(p.Estado)}</td><td>${escapeHtml(p.fecha || '—')}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      tPiezas.innerHTML = html;
+    }
+
+    // Tabla errores
+    const tErr = document.getElementById('tabla-errores');
+    if (errores.length === 0) {
+      tErr.innerHTML = '<div class="empty">✓ Sin errores registrados — el ecosistema no ha tenido incidentes desde que se activó el manejo de errores.</div>';
+    } else {
+      let html = '<table class="simple"><thead><tr><th>Nodo fallido</th><th>Acción tomada</th><th>Fecha</th><th>Mensaje</th></tr></thead><tbody>';
+      errores.forEach(e => {
+        html += `<tr><td>${escapeHtml(e.Nodo_Fallido)}</td><td>${escapeHtml(e.Accion_Tomada)}</td><td>${escapeHtml(e.fecha || '—')}</td><td>${escapeHtml(e.Mensaje_Error)}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      tErr.innerHTML = html;
+    }
+
+  } catch (err) {
+    document.getElementById('live-badge').className = 'badge err';
+    document.getElementById('live-badge').textContent = '● error de conexión';
+    document.getElementById('updated-at').textContent = 'No se pudo refrescar contra Notion en este momento.';
+    const banner = document.getElementById('error-banner');
+    banner.style.display = 'block';
+    banner.textContent = 'Error al consultar Notion: ' + (err && err.message ? err.message : String(err));
+    console.error(err);
+  }
+})();
+</script>
