@@ -1,0 +1,216 @@
+{
+  "name": "PE7 - Generacion con RAG (HITL)",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": { "__rl": true, "value": "claude-sonnet-5", "mode": "id" },
+        "messages": { "values": [ { "content": "=={{  $json.prompt_text }}" } ] },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [672, 0],
+      "id": "bb8fc41f-772a-4db1-8371-8943175e36b3",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "credentials": { "anthropicApi": { "id": "d3IianUxlKs3rsVt", "name": "Anthropic account" } },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ragItems = $input.all();\nconst ragLines = ragItems.map(function(item) {\n  return \"- [\" + item.json.property_categoria + \"] \" + item.json.property_contenido;\n});\nconst ragContext = ragLines.join(\"\\n\");\nconst ideaSemilla = $('Notion Trigger').first().json.Idea_Semilla;\nconst pageId = $('Notion Trigger').first().json.id;\nconst promptText = \"Sos el redactor de contenido de Kolibri CRM, un software de gestion de clientes para pymes y freelancers en Latinoamerica.\\n\\n\" +\n\"(150-220 palabras), en tono cercano y profesional, basado en la siguiente idea semilla:\\n\" +\n\"'\" + ideaSemilla + \"'\\n\\n\" +\n\"Usa UNICAMENTE la siguiente informacion de contexto privado sobre Kolibri CRM como base factual del post (no inventes datos, features ni cifras que no esten aqui):\\n\" +\nragContext + \"\\n\\n\" +\n\"Antes de escribir, pensa paso a paso (no lo muestres en la respuesta):\\n\" +\n\"1. Elegi que datos de contexto son mas relevantes para la idea semilla.\\n\" +\n\"2. Defini un gancho inicial que capture atencion en las primeras 2 lineas.\\n\" +\n\"3. Estructura el post: hook, problema, solucion con dato de contexto, cierre con pregunta o CTA suave.\\n\" +\n\"Devolve UNICAMENTE el texto final del post de LinkedIn, sin explicaciones ni el razonamiento intermedio.\";\n\nreturn [{ json: { idea_semilla: ideaSemilla, rag_context: ragContext, prompt_text: promptText, page_id: pageId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0],
+      "id": "060817f8-c47a-4908-8a54-7f17dcd5618c",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "8f98c800-9596-4842-be8f-38075179ef83", "name": "ID_Pieza", "value": "={{ $('Notion Trigger').first().json.ID_Pieza }}", "type": "string" },
+            { "id": "23a9dac7-4655-4928-bd7e-f4dff1d0d6cd", "name": "Contenido_Generado", "value": "={{ $json.content.find(c => c.type === 'text').text }}", "type": "string" },
+            { "id": "9296f144-0208-471b-8644-fdafbb231d8c", "name": "page_id", "value": "={{ $('Notion Trigger').first().json.id }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [1184, 144],
+      "id": "519904e1-ed0c-4d7e-9039-7d3b4e8515c1",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "pollTimes": { "item": [ { "mode": "everyMinute" } ] },
+        "dataSourceId": { "__rl": true, "value": "3e264d4a-9063-8083-844a-000b00dda427", "mode": "list", "cachedResultName": "Kolibri CRM - Ecosistema IA - Centro de Comando", "cachedResultUrl": "https://app.notion.com/p/3e264d4a9063801f9f60ca0eb7dc19fa" }
+      },
+      "type": "n8n-nodes-base.notionTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0],
+      "id": "941d5f46-330f-4e7a-a046-9544e75e1e75",
+      "name": "Notion Trigger",
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "dataSourceId": { "__rl": true, "value": "b23415fe-9810-4cf2-9d51-b86bec98572d", "mode": "list", "cachedResultName": "Kolibri CRM - Ecosistema IA - Base de Conocimiento RAG", "cachedResultUrl": "https://app.notion.com/p/b926c5d7c7af4a0b84b2b38472d541bb" },
+        "returnAll": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [224, 0],
+      "id": "ce5aefd1-8056-4084-a7ab-9bc1c26f0619",
+      "name": "Get many database pages",
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": { "__rl": true, "value": "={{ $json.page_id }}", "mode": "id" },
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "=Estado|select", "selectValue": "=Procesado por IA" },
+            { "key": "=Contenido_Generado|rich_text", "textContent": "={{ $json.Contenido_Generado }}" },
+            { "key": "=Fecha_Ultima_Ejecucion|date", "date": "={{ $now.format('yyyy-MM-dd') }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [1328, 192],
+      "id": "d567ba73-abc4-40ec-b0dd-8cf1c047103c",
+      "name": "Update a database page",
+      "retryOnFail": true,
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": { "__rl": true, "value": "2f75a762-b3cb-40b5-99f1-d9d111e9f53c", "mode": "list", "cachedResultName": "Kolibri CRM - Ecosistema IA - Log de Errores", "cachedResultUrl": "https://app.notion.com/p/7d3d894ccd7c4bedb5e63abcb2c6af2f" },
+        "title": "=Error - Update a database page - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Mensaje_Error|rich_text", "textContent": "={{ $json.error?.message || JSON.stringify($json.error) || 'Error desconocido' }}" },
+            { "key": "Nodo_Fallido|rich_text", "textContent": "Update a database page (escritura en Notion)" },
+            { "key": "Fecha|date", "date": "={{ $now.format('yyyy-MM-dd') }}" },
+            { "key": "Accion_Tomada|select", "selectValue": "Detenido y registrado (Break)" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [1488, 208],
+      "id": "412ee5ee-9f7e-4d42-a27b-62319691a4e5",
+      "name": "Create a database page",
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": { "__rl": true, "value": "2f75a762-b3cb-40b5-99f1-d9d111e9f53c", "mode": "list", "cachedResultName": "Kolibri CRM - Ecosistema IA - Log de Errores", "cachedResultUrl": "https://app.notion.com/p/7d3d894ccd7c4bedb5e63abcb2c6af2f" },
+        "title": "=Error - Message a model - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Mensaje_Error|rich_text", "textContent": "={{ $json.error?.message || JSON.stringify($json.error) || 'Error desconocido' }}" },
+            { "key": "Nodo_Fallido|rich_text", "textContent": "Message a model (generación de contenido con IA)" },
+            { "key": "Fecha|date", "date": "={{ $now.format('yyyy-MM-dd') }}" },
+            { "key": "Accion_Tomada|select", "selectValue": "Detenido y registrado (Break)" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [1040, 96],
+      "id": "aabee32a-824c-4461-a6c0-7ab46bc8e3c9",
+      "name": "Create a database page1",
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } }
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "samrod780@gmail.com",
+        "subject": "Kolibri CRM - Aprobación de contenido generado por IA",
+        "message": "=Hola Sam,{{ \"\\n\\n\" }}Se generó una nueva pieza de contenido con IA para Kolibri CRM que requiere tu aprobación antes de publicarse.{{ \"\\n\\n\" }}Contenido generado:{{ \"\\n\" }}{{ $json.Contenido_Generado }}{{ \"\\n\\n\" }}Por favor revisá y aprobá o rechazá usando los botones de este correo.",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1264, 352],
+      "id": "e5b45f38-f5c9-49cd-9125-3196bff10312",
+      "name": "Send message and wait for response",
+      "webhookId": "dd1ab7da-58b1-414b-af4a-e6d248de75e7",
+      "retryOnFail": true,
+      "credentials": { "gmailOAuth2": { "id": "1jEsalKkxrrjdrBd", "name": "Gmail account" } },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "dataSourceId": { "__rl": true, "value": "2f75a762-b3cb-40b5-99f1-d9d111e9f53c", "mode": "list", "cachedResultName": "Kolibri CRM - Ecosistema IA - Log de Errores", "cachedResultUrl": "https://app.notion.com/p/7d3d894ccd7c4bedb5e63abcb2c6af2f" },
+        "title": "=Error - Send message and wait for response - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Mensaje_Error|rich_text", "textContent": "={{ $json.error?.message || JSON.stringify($json.error) || 'Error desconocido' }}" },
+            { "key": "Nodo_Fallido|rich_text", "textContent": "Send message and wait for response (notificación de aprobación por Gmail)" },
+            { "key": "Fecha|date", "date": "={{ $now.format('yyyy-MM-dd') }}" },
+            { "key": "Accion_Tomada|select", "selectValue": "Detenido y registrado (Break)" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 3,
+      "position": [1488, 448],
+      "id": "93689b77-2856-4e72-810d-9553bc0d66a6",
+      "name": "Create a database page2",
+      "credentials": { "notionApi": { "id": "gy0LYeo4leagEt71", "name": "Notion account" } }
+    }
+  ],
+  "connections": {
+    "Code in JavaScript": { "main": [ [ { "node": "Message a model", "type": "main", "index": 0 } ] ] },
+    "Message a model": { "main": [ [ { "node": "Edit Fields", "type": "main", "index": 0 } ], [ { "node": "Create a database page1", "type": "main", "index": 0 } ] ] },
+    "Edit Fields": { "main": [ [ { "node": "Send message and wait for response", "type": "main", "index": 0 } ] ] },
+    "Notion Trigger": { "main": [ [ { "node": "Get many database pages", "type": "main", "index": 0 } ] ] },
+    "Update a database page": { "main": [ [], [ { "node": "Create a database page", "type": "main", "index": 0 } ] ] },
+    "Send message and wait for response": { "main": [ [], [ { "node": "Create a database page2", "type": "main", "index": 0 } ] ] }
+  },
+  "pinData": {
+    "Notion Trigger": [
+      {
+        "json": {
+          "id": "3e664d4a-9063-812c-a61c-c17c609ee89a",
+          "Contenido_Generado": "",
+          "Estado": "Pendiente",
+          "Idea_Semilla": "Post para WhatsApp Status: recordatorio de que Kolibri centraliza los seguimientos de pago",
+          "Errores": [],
+          "Aprobado": false,
+          "Fragmentos_RAG_Usados": [],
+          "Fecha_Ultima_Ejecucion": null,
+          "ID_Pieza": "KOL-003"
+        },
+        "pairedItem": { "item": 0 }
+      }
+    ]
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
